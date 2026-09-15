@@ -1,0 +1,332 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Comparador de Fundos | Grupo InvestFlow</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-main: #0b0f19;
+            --bg-card: #131b2e;
+            --border-color: #1e293b;
+            --primary: #56C75D;
+            --primary-hover: #3f9e47;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+        }
+        body { background: var(--bg-main); color: var(--text-main); font-family: 'Montserrat', sans-serif; margin: 0; padding: 25px; }
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 15px; margin-bottom: 25px; flex-wrap: wrap; gap: 15px; }
+        .header img { max-width: 260px; height: auto; object-fit: contain; }
+        
+        .card { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 10px; padding: 20px; margin-bottom: 20px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+        .card h3 { margin-top: 0; font-size: 16px; color: #e2e8f0; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; }
+        
+        input[type="text"], select { background: #0f172a; border: 1px solid var(--border-color); color: #fff; padding: 10px 14px; border-radius: 6px; font-size: 14px; box-sizing: border-box; }
+        input[type="text"] { width: 100%; }
+        button { background: var(--primary); color: #000; font-weight: bold; padding: 10px 18px; border: none; border-radius: 6px; cursor: pointer; transition: background 0.2s; }
+        button:hover { background: var(--primary-hover); }
+        
+        .search-results { max-height: 220px; overflow-y: auto; background: #0f172a; border: 1px solid var(--border-color); border-radius: 6px; margin-top: 5px; display: none; position: absolute; width: calc(100% - 40px); z-index: 10; }
+        .search-item { padding: 10px 14px; cursor: pointer; border-bottom: 1px solid #1e293b; font-size: 13px; }
+        .search-item:hover { background: #1e293b; color: var(--primary); }
+
+        .fund-card-info { background: #0f172a; border: 1px solid var(--border-color); padding: 15px; border-radius: 8px; margin-top: 15px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border-bottom: 1px solid var(--border-color); padding: 12px; text-align: left; font-size: 13px; }
+        th { color: var(--primary); background: #0f172a; font-weight: 600; }
+        td { color: #cbd5e1; }
+        
+        .chart-container { position: relative; height: 420px; width: 100%; }
+        .badge { background: #1e293b; color: var(--primary); padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+
+        button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    background: #475569 !important;
+    color: #94a3b8 !important;
+}
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <img src="https://raw.githubusercontent.com/gnsavecash-code/logos/main/logo%20investflow.png" alt="Grupo InvestFlow">
+        <span style="font-size: 15px; font-weight: 700; color: var(--primary);">Comparador de Fundos de Investimento (CVM)</span>
+    </div>
+
+    <!-- SEÇÃO 1: PESQUISA DE FUNDO -->
+    <div class="card" style="position: relative;">
+        <h3>1. Pesquisar Fundo por Nome ou CNPJ</h3>
+        <div style="position: relative;">
+            <input type="text" id="inputBusca" placeholder="Digite o nome do fundo ou CNPJ (ex: XP, Verde, Itau...)" oninput="buscarFundosDinamico()">
+            <div id="resultadosBusca" class="search-results"></div>
+        </div>
+
+        <div id="detalhesFundoSelecionado" style="display: none;">
+            <div class="fund-card-info">
+                <div>
+                    <span class="badge" id="detalheClasse">Classe</span>
+                    <h4 id="detalheNome" style="margin: 8px 0 4px 0; color: #fff; font-size: 16px;">Nome do Fundo</h4>
+                    <span style="font-size: 12px; color: var(--text-muted);" id="detalheCnpj">CNPJ: 00.000.000/0001-00</span><br>
+                    <span style="font-size: 12px; color: var(--text-muted);" id="detalheAdmin">Administrador: -</span>
+                </div>
+                <button onclick="adicionarFundoComparacao()">+ Adicionar à Comparação</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- SEÇÃO 2: GERENCIAR COMPARAÇÃO -->
+    <div class="card">
+        <h3>2. Ativos e Prazo da Comparação</h3>
+        <div id="listaAtivosComparacao" style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 15px;">
+            <span style="color: var(--text-muted); font-size: 13px;">Nenhum fundo selecionado ainda.</span>
+        </div>
+
+        <div style="display: flex; gap: 20px; align-items: center; margin-top: 15px; border-top: 1px solid var(--border-color); padding-top: 15px; flex-wrap: wrap;">
+            <label style="display: flex; align-items: center; gap: 8px; font-size: 13px;">
+                <strong>Prazo de Análise:</strong>
+                <select id="selPeriodo">
+                    <option value="12m">Últimos 12 Meses</option>
+                    <option value="inicio">Desde o Início (Histórico Total)</option>
+                </select>
+            </label>
+
+            <label style="display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer;">
+                <input type="checkbox" id="chkCdi" checked> Incluir CDI (Benchmark)
+            </label>
+
+           <button id="btnComparar" onclick="executarComparacao()">Gerar Gráfico Comparativo</button>
+        </div>
+    </div>
+
+    <!-- SEÇÃO 3: GRÁFICO -->
+    <div class="card">
+        <h3>Evolução da Rentabilidade Normalizada (Base 100)</h3>
+        <div class="chart-container">
+            <canvas id="graficoCotas"></canvas>
+        </div>
+    </div>
+
+    <!-- SEÇÃO 4: TABELA RESUMO -->
+    <div class="card">
+        <h3>Resumo de Desempenho e Risco</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Ativo / Fundo</th>
+                    <th>Rentabilidade Acumulada</th>
+                    <th>% do CDI</th>
+                    <th>Volatilidade Anualizada</th>
+                </tr>
+            </thead>
+            <tbody id="tabelaResumo">
+                <tr><td colspan="4" style="text-align:center; color:var(--text-muted);">Adicione ativos e gere o comparativo.</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        let graficoInstance = null;
+        let fundoTemporario = null;
+        let cnpjsComparacao = [];
+        let cacheDetalhesFundos = {};
+        let timeoutBusca = null;
+
+        function buscarFundosDinamico() {
+            clearTimeout(timeoutBusca);
+            const termo = document.getElementById('inputBusca').value.trim();
+            const container = document.getElementById('resultadosBusca');
+
+            if (termo.length < 2) {
+                container.style.display = 'none';
+                return;
+            }
+
+            timeoutBusca = setTimeout(() => {
+                fetch(`/api/pesquisar?termo=${encodeURIComponent(termo)}`)
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.length === 0) {
+                            container.innerHTML = '<div class="search-item" style="color:var(--text-muted);">Nenhum fundo encontrado.</div>';
+                            container.style.display = 'block';
+                            return;
+                        }
+
+                        let html = "";
+                        data.forEach(f => {
+                            cacheDetalhesFundos[f.cnpj] = f;
+                            html += `<div class="search-item" onclick="selecionarFundo('${f.cnpj}')">
+                                <strong>${f.nome}</strong><br>
+                                <span style="color:var(--text-muted); font-size:11px;">CNPJ: ${f.cnpj} | Classe: ${f.classe}</span>
+                            </div>`;
+                        });
+                        container.innerHTML = html;
+                        container.style.display = 'block';
+                    });
+            }, 300);
+        }
+
+        function selecionarFundo(cnpj) {
+            const f = cacheDetalhesFundos[cnpj];
+            if (!f) return;
+
+            fundoTemporario = f;
+            document.getElementById('detalheNome').innerText = f.nome;
+            document.getElementById('detalheCnpj').innerText = `CNPJ: ${f.cnpj}`;
+            document.getElementById('detalheClasse').innerText = f.classe;
+            document.getElementById('detalheAdmin').innerText = `Administrador: ${f.admin}`;
+            
+            document.getElementById('detalhesFundoSelecionado').style.display = 'block';
+            document.getElementById('resultadosBusca').style.display = 'none';
+            document.getElementById('inputBusca').value = f.nome;
+        }
+
+        function adicionarFundoComparacao() {
+            if (!fundoTemporario) return;
+
+            if (cnpjsComparacao.includes(fundoTemporario.cnpj)) {
+                alert("Este fundo já está na lista de comparação.");
+                return;
+            }
+
+            cnpjsComparacao.push(fundoTemporario.cnpj);
+            atualizarTagsComparacao();
+
+            document.getElementById('inputBusca').value = '';
+            document.getElementById('detalhesFundoSelecionado').style.display = 'none';
+            fundoTemporario = null;
+        }
+
+        function removerFundoComparacao(cnpj) {
+            cnpjsComparacao = cnpjsComparacao.filter(c => c !== cnpj);
+            atualizarTagsComparacao();
+        }
+
+        function atualizarTagsComparacao() {
+            const container = document.getElementById('listaAtivosComparacao');
+            if (cnpjsComparacao.length === 0) {
+                container.innerHTML = '<span style="color: var(--text-muted); font-size: 13px;">Nenhum fundo selecionado ainda.</span>';
+                return;
+            }
+
+            let html = "";
+            cnpjsComparacao.forEach(cnpj => {
+                const f = cacheDetalhesFundos[cnpj] || { nome: cnpj };
+                html += `<div style="background:#0f172a; border:1px solid var(--border-color); padding:6px 12px; border-radius:6px; display:flex; align-items:center; gap:8px; font-size:12px;">
+                    <span>${f.nome}</span>
+                    <button onclick="removerFundoComparacao('${cnpj}')" style="background:transparent; color:#ef4444; border:none; font-weight:bold; cursor:pointer; padding:0;">✕</button>
+                </div>`;
+            });
+            container.innerHTML = html;
+        }
+
+      function executarComparacao() {
+    if (cnpjsComparacao.length === 0) {
+        alert("Adicione pelo menos um fundo à comparação.");
+        return;
+    }
+
+    // Captura o botão e salva o texto original
+    const btn = document.getElementById('btnComparar') || document.querySelector('button[onclick="executarComparacao()"]');
+    const textoOriginal = btn ? btn.innerText : "Gerar Gráfico Comparativo (Base 100)";
+
+    // Trava o botão contra múltiplos cliques
+    if (btn) {
+        btn.disabled = true;
+        btn.innerText = "Processando...";
+    }
+
+    const incluirCdi = document.getElementById('chkCdi').checked;
+    const periodo = document.getElementById('selPeriodo').value;
+
+    fetch('/api/comparar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+            cnpjs: cnpjsComparacao,
+            cdi: incluirCdi,
+            periodo: periodo
+        })
+    })
+    .then(res => res.json())
+    .then(res => {
+        if (!res.sucesso) {
+            alert(res.msg || "Erro ao processar comparação.");
+            return;
+        }
+
+        const dados = res.dados;
+        let labels = [];
+        let datasets = [];
+        let linhasTabela = "";
+        const cores = ['#56C75D', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4'];
+        let i = 0;
+
+        Object.keys(dados).forEach(chave => {
+            const info = dados[chave];
+            if (labels.length === 0 && info.serie.length > 0) {
+                labels = info.serie.map(s => s.data);
+            }
+
+            datasets.push({
+                label: info.nome,
+                data: info.serie.map(s => s.valor),
+                borderColor: cores[i % cores.length],
+                borderWidth: 2,
+                pointRadius: 0,
+                tension: 0.1
+            });
+
+            const corRent = info.rentabilidadeTotal >= 0 ? '#56C75D' : '#ef4444';
+            const textoPctCdi = info.pctCdi !== null && info.pctCdi !== undefined 
+                ? `${info.pctCdi.toFixed(1)}% do CDI` 
+                : '-';
+
+            linhasTabela += `<tr>
+                <td><strong>${info.nome}</strong></td>
+                <td style="color:${corRent}; font-weight:600;">${info.rentabilidadeTotal.toFixed(2)}%</td>
+                <td style="font-weight:600;">${textoPctCdi}</td>
+                <td>${info.volatilidade.toFixed(2)}% a.a.</td>
+            </tr>`;
+            i++;
+        });
+
+        document.getElementById('tabelaResumo').innerHTML = linhasTabela;
+
+        const ctx = document.getElementById('graficoCotas').getContext('2d');
+        if (graficoInstance) graficoInstance.destroy();
+
+        graficoInstance = new Chart(ctx, {
+            type: 'line',
+            data: { labels: labels, datasets: datasets },
+            options: { 
+                responsive: true, 
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { labels: { color: '#f8fafc', font: { family: 'Montserrat' } } }
+                },
+                scales: {
+                    x: { grid: { color: '#1e293b' }, ticks: { color: '#94a3b8' } },
+                    y: { grid: { color: '#1e293b' }, ticks: { color: '#94a3b8' } }
+                }
+            }
+        });
+    })
+    .catch(err => {
+        console.error("Erro no processamento:", err);
+        alert("Ocorreu um erro ao processar a comparação.");
+    })
+    .finally(() => {
+        // Restaura o botão independente de sucesso ou falha na requisição
+        if (btn) {
+            btn.disabled = false;
+            btn.innerText = textoOriginal;
+        }
+    });
+};
+        
+    </script>
+</body>
+</html>

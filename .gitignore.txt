@@ -1,0 +1,4 @@
+cache_cvm/
+__pycache__/
+*.parquet
+*.pyc
