@@ -39,15 +39,19 @@ def carregar_cadastro():
 
     if not os.path.exists(arq_cad_csv):
         try:
-            resp_cad = requests.get(url_cad, headers=HEADERS, timeout=30)
+            print("🔄 Baixando cadastro de fundos da CVM...")
+            resp_cad = requests.get(url_cad, headers=HEADERS, stream=True, timeout=90)
             if resp_cad.status_code == 200:
                 with open(arq_cad_csv, "wb") as f:
-                    f.write(resp_cad.content)
+                    for chunk in resp_cad.iter_content(chunk_size=8192):
+                        f.write(chunk)
+                print("✅ Cadastro de fundos baixado com sucesso!")
         except Exception as e:
-            print("Erro ao baixar cadastro CVM:", e)
+            print("❌ Erro ao baixar cadastro CVM:", e)
 
     if os.path.exists(arq_cad_csv):
         try:
+            print("📦 Processando cadastro de fundos...")
             df = pd.read_csv(arq_cad_csv, sep=";", encoding="ISO-8859-1", low_memory=False)
             df.columns = df.columns.str.replace('"', '').str.strip().str.upper()
 
@@ -67,14 +71,20 @@ def carregar_cadastro():
                     if col in df.columns:
                         cols_desejadas.append(col)
 
-                cad_fundos_cache = df[cols_desejadas].copy()
+                cad_fundos_cache = df[cols_desejadas].copy().reset_index(drop=True)
+                print(f"✅ Cadastro carregado na memória! Total: {len(cad_fundos_cache)} fundos.")
         except Exception as e:
-            print("Erro ao carregar cad_fi.csv:", e)
+            print("❌ Erro ao processar cad_fi.csv:", e)
 
     return cad_fundos_cache
 
+# Pré-carrega o cadastro leve na inicialização do servidor
+try:
+    carregar_cadastro()
+except Exception as e:
+    print("Aviso ao inicializar cadastro:", e)
+
 def buscar_cotas_cnpjs(cnpjs, qtd_meses=12):
-    """Baixa e processa em chunks apenas os CNPJs solicitados para economizar RAM"""
     meses = obter_ultimos_meses(qtd_meses)
     dfs = []
     cnpjs_set = set(cnpjs)
@@ -85,7 +95,7 @@ def buscar_cotas_cnpjs(cnpjs, qtd_meses=12):
 
         try:
             if not os.path.exists(arq_zip):
-                resp = requests.get(url_inf, headers=HEADERS, timeout=30)
+                resp = requests.get(url_inf, headers=HEADERS, timeout=45)
                 if resp.status_code == 200:
                     with open(arq_zip, "wb") as f:
                         f.write(resp.content)
